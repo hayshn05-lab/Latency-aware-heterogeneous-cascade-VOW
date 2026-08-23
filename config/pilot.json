@@ -1,0 +1,12 @@
+{
+  "handle": "elonmusk",
+  "window_start": "2026-05-19T16:00:00Z",
+  "window_end": "2026-05-26T16:00:00Z",
+  "search_query": "Elon Musk post",
+  "bundle_gap_seconds": 60,
+  "horizons_seconds": [5, 10, 30, 60, 120, 300, 600, 1800],
+  "staleness_seconds": 900,
+  "terminal_move_floor": 0.005,
+  "base_url": "https://lum.id/findata",
+  "cache_dir": "data/raw/findata"
+}

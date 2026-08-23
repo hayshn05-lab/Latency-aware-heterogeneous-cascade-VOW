@@ -29,6 +29,35 @@ Create the Python package, configuration, and tests for:
 
 The test suite must use fixtures only and must not require a token or network.
 
+### Task 1 exact interface
+
+Read `docs/specs/pilot_protocol.md` completely before coding. Create:
+
+- `pyproject.toml`: Python `>=3.11`, no runtime dependencies, package under `src/`;
+- `config/pilot.json`: source handle, UTC window, search query, exact title-window match fields, bundle gap `60`, horizons `[5, 10, 30, 60, 120, 300, 600, 1800]`, staleness `900`, and terminal-move floor `0.005`;
+- `src/value_of_wait/client.py`: Findata client, retry policy, redacted request ledger, content-addressed JSON cache;
+- `src/value_of_wait/parsing.py`: tolerant response-envelope parsing and typed normalized records;
+- `src/value_of_wait/study.py`: pure event construction and metric functions;
+- `src/value_of_wait/outputs.py`: stable CSV/JSON/Markdown/SVG writers;
+- `src/value_of_wait/pipeline.py`: acquisition, validation, analysis, and artifact orchestration;
+- `src/value_of_wait/cli.py` and `scripts/run_pilot.py`;
+- credential-free fixtures and `unittest` tests;
+- placeholder `data` and `outputs` directories retained with `.gitkeep` where needed.
+
+The exact commands are:
+
+```text
+python scripts/run_pilot.py audit --config config/pilot.json --output outputs/pilot
+python scripts/run_pilot.py run --config config/pilot.json --output outputs/pilot
+python scripts/run_pilot.py run --config config/pilot.json --output outputs/pilot --offline
+```
+
+Online commands read only `LUMID_PAT`. If absent, exit `2` with a secret-free instruction. Offline mode must not read or require that variable. Default base URL is `https://lum.id/findata`; every endpoint remains configurable for fixture tests. Search paginates and each market receives an inclusion or exclusion reason.
+
+Deterministic aggregate artifacts are `data_manifest.json`, `market_validation.csv`, `event_bundles.csv`, `delay_profile.csv`, `first_print_latency.csv`, `observations.csv`, `summary.json`, `latency_profile.svg`, and `generated_findings.md` under the selected output directory. SVG uses common positional scales, reports sample size and coverage, does not smooth, and exposes missingness.
+
+Use `unittest`. Record focused red-to-green evidence and run the full suite plus `python -m compileall -q src scripts tests`. Commit the task and write its full report to the SDD task report path supplied by the controller.
+
 ## Task 2: Live pilot execution
 
 Run the pipeline with the user-provided credential supplied through a non-echoing transient environment. Inspect response shapes and make the smallest parser corrections needed. Record:
@@ -65,4 +94,3 @@ Run, in order:
 5. `python -m compileall -q src scripts tests`
 6. secret scan over tracked and untracked workspace files, excluding `.git` and ignored raw caches
 7. independent specification and code review
-
