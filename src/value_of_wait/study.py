@@ -58,11 +58,11 @@ def study_observations(bundles: list[dict[str, Any]], market_trades: dict[str, l
                 target = decision + timedelta(seconds=horizon)
                 delayed = _last_state(trades, target, staleness_seconds)
                 eligible = baseline is not None and delayed is not None
-                row: dict[str, Any] = {"bundle_id": bundle["bundle_id"], "market_id": market_id, "horizon_seconds": horizon, "clean": bool(bundle.get(f"clean_{horizon}", False)), "eligible": eligible, "baseline_age_seconds": baseline["age_seconds"] if baseline else None, "delayed_age_seconds": delayed["age_seconds"] if delayed else None, "updated": None, "absolute_repricing_points": None, "remaining_move_proxy": None}
+                row: dict[str, Any] = {"bundle_id": bundle["bundle_id"], "market_id": market_id, "horizon_seconds": horizon, "clean": bool(bundle.get(f"clean_{horizon}", False)), "terminal_clean": bool(bundle.get(f"clean_{terminal}", False)), "eligible": eligible, "baseline_age_seconds": baseline["age_seconds"] if baseline else None, "delayed_age_seconds": delayed["age_seconds"] if delayed else None, "updated": None, "absolute_repricing_points": None, "remaining_move_proxy": None}
                 if eligible:
                     row["updated"] = parse_time(delayed["timestamp"]) > decision
                     row["absolute_repricing_points"] = round(100 * abs(delayed["price"] - baseline["price"]), 12)
-                    if endpoint is not None and abs(endpoint["price"] - baseline["price"]) >= terminal_move_floor:
+                    if row["terminal_clean"] and endpoint is not None and abs(endpoint["price"] - baseline["price"]) >= terminal_move_floor:
                         row["remaining_move_proxy"] = abs(endpoint["price"] - delayed["price"]) / abs(endpoint["price"] - baseline["price"])
                 result.append(row)
     return result
@@ -81,21 +81,23 @@ def summarize_delays(observations: list[dict[str, Any]], horizons: list[int]) ->
         all_rows = [row for row in observations if row["horizon_seconds"] == horizon]
         eligible = [row for row in all_rows if row["eligible"]]
         clean = [row for row in eligible if row["clean"]]
+        terminal_clean = [row for row in eligible if row.get("terminal_clean")]
         repricing = [float(row["absolute_repricing_points"]) for row in clean if row["absolute_repricing_points"] is not None]
         remaining = [float(row["remaining_move_proxy"]) for row in clean if row["remaining_move_proxy"] is not None]
         repricing_iqr = _iqr(repricing)
         remaining_iqr = _iqr(remaining)
         ages = [float(row["delayed_age_seconds"]) for row in clean if row["delayed_age_seconds"] is not None]
         age_iqr = _iqr(ages)
-        rows.append({"horizon_seconds": horizon, "bundle_market_pairs": len(all_rows), "eligible_pairs": len(eligible), "clean_eligible_pairs": len(clean), "coverage": len(eligible) / len(all_rows) if all_rows else None, "clean_coverage": len(clean) / len(all_rows) if all_rows else None, "updated_fraction": sum(bool(row["updated"]) for row in clean) / len(clean) if clean else None, "median_repricing_points": median(repricing) if repricing else None, "repricing_iqr_low_points": repricing_iqr[0], "repricing_iqr_high_points": repricing_iqr[1], "median_remaining_move_proxy": median(remaining) if remaining else None, "remaining_iqr_low": remaining_iqr[0], "remaining_iqr_high": remaining_iqr[1], "median_delayed_age_seconds": median(ages) if ages else None, "delayed_age_iqr_low_seconds": age_iqr[0], "delayed_age_iqr_high_seconds": age_iqr[1], "missing_pairs": len(all_rows) - len(eligible)})
+        rows.append({"horizon_seconds": horizon, "bundle_market_pairs": len(all_rows), "eligible_pairs": len(eligible), "clean_eligible_pairs": len(clean), "terminal_clean_eligible_pairs": len(terminal_clean), "coverage": len(eligible) / len(all_rows) if all_rows else None, "clean_coverage": len(clean) / len(all_rows) if all_rows else None, "updated_pairs": sum(bool(row["updated"]) for row in clean), "updated_fraction": sum(bool(row["updated"]) for row in clean) / len(clean) if clean else None, "repricing_n": len(repricing), "median_repricing_points": median(repricing) if repricing else None, "repricing_iqr_low_points": repricing_iqr[0], "repricing_iqr_high_points": repricing_iqr[1], "remaining_n": len(remaining), "median_remaining_move_proxy": median(remaining) if remaining else None, "remaining_iqr_low": remaining_iqr[0], "remaining_iqr_high": remaining_iqr[1], "median_delayed_age_seconds": median(ages) if ages else None, "delayed_age_iqr_low_seconds": age_iqr[0], "delayed_age_iqr_high_seconds": age_iqr[1], "missing_pairs": len(all_rows) - len(eligible)})
     return rows
 
 
-def first_print_latencies(bundles: list[dict[str, Any]], market_trades: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+def first_print_latencies(bundles: list[dict[str, Any]], market_trades: dict[str, list[dict[str, Any]]], *, terminal_horizon_seconds: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for bundle in bundles:
         decision = parse_time(bundle["decision_time"])
         candidates = [parse_time(trade["timestamp"]) for trades in market_trades.values() for trade in trades if parse_time(trade["timestamp"]) > decision]
         if candidates:
-            rows.append({"bundle_id": bundle["bundle_id"], "latency_seconds": (min(candidates) - decision).total_seconds()})
+            latency = (min(candidates) - decision).total_seconds()
+            rows.append({"bundle_id": bundle["bundle_id"], "latency_seconds": latency, "within_terminal_horizon": latency <= terminal_horizon_seconds, "terminal_clean": bool(bundle.get(f"clean_{terminal_horizon_seconds}", False))})
     return rows

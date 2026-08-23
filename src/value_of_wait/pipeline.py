@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 from typing import Any
+import warnings
 
 from .client import FindataClient, token_from_environment
 from .outputs import write_outputs
@@ -19,6 +20,9 @@ DEFAULT_ENDPOINTS = {
     "trades": "/prediction-markets/trades/polymarket/{condition_id}",
     "orderbook": "/prediction-markets/orderbook/polymarket/{asset_id}",
 }
+HISTORICAL_LIMIT = 1000
+MARKET_SEARCH_LIMIT = 1000
+MAX_MARKET_SEARCH_PAGES = 1000
 
 
 def _digest(value: Any) -> str:
@@ -67,17 +71,49 @@ def _page_rows(payload: Any) -> tuple[list[dict[str, Any]], str | None]:
     return [row for row in (rows or []) if isinstance(row, dict)], str(cursor) if cursor else None
 
 
-def fetch_paginated(client: FindataClient, endpoint: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+def _response_total(payload: Any) -> int | None:
+    containers = [payload]
+    if isinstance(payload, dict):
+        containers.extend(payload.get(key) for key in ("data", "meta", "pagination"))
+        data = payload.get("data")
+        if isinstance(data, dict):
+            containers.extend(data.get(key) for key in ("meta", "pagination"))
+    for container in containers:
+        if not isinstance(container, dict):
+            continue
+        for key in ("total", "total_count", "totalCount"):
+            value = container.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                return value
+    return None
+
+
+def fetch_bounded(client: FindataClient, endpoint: str, params: dict[str, Any]) -> Any:
+    payload = client.get_json(endpoint, params)
+    total = _response_total(payload)
+    rows, _ = _page_rows(payload)
+    if total is not None and total > len(rows):
+        warnings.warn(f"Findata response for {endpoint} may be truncated: service reports {total} rows but only {len(rows)} were retrieved", RuntimeWarning, stacklevel=2)
+    return payload
+
+
+def fetch_market_search(client: FindataClient, endpoint: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    limit = int(params["limit"])
+    if limit <= 0:
+        raise ValueError("market-search limit must be positive")
     rows: list[dict[str, Any]] = []
-    cursor: str | None = None
-    while True:
+    for page_number in range(MAX_MARKET_SEARCH_PAGES):
         request = dict(params)
-        if cursor:
-            request["cursor"] = cursor
-        page, cursor = _page_rows(client.get_json(endpoint, request))
+        request["offset"] = page_number * limit
+        payload = client.get_json(endpoint, request)
+        page, _ = _page_rows(payload)
         rows.extend(page)
-        if not cursor:
+        total = _response_total(payload)
+        if total is not None and len(rows) >= total:
             return rows
+        if len(page) < limit:
+            return rows
+    raise RuntimeError("Findata market-search pagination exceeded the safety page limit")
 
 
 def _manifest(endpoint: str, params: dict[str, Any], payload: Any, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -85,11 +121,11 @@ def _manifest(endpoint: str, params: dict[str, Any], payload: Any, metadata: dic
     return {"endpoint": endpoint, "params": dict(sorted(params.items())), "retrieved_at": metadata.get("retrieved_at"), "row_count": len(rows), "sha256": _digest(payload)}
 
 
-def _get_source(endpoint: str, params: dict[str, Any], cache: Path, offline: bool, client: FindataClient | None) -> tuple[Any, dict[str, Any]]:
+def _get_source(endpoint: str, params: dict[str, Any], cache: Path, offline: bool, client: FindataClient | None, *, paginated_market_search: bool = False) -> tuple[Any, dict[str, Any]]:
     if offline:
         return load_cache_entry(cache, endpoint, params)
     assert client is not None
-    payload = {"data": fetch_paginated(client, endpoint, params)}
+    payload = {"data": fetch_market_search(client, endpoint, params)} if paginated_market_search else fetch_bounded(client, endpoint, params)
     path = save_cache_entry(cache, endpoint, params, payload)
     return payload, {"retrieved_at": json.loads(path.read_text(encoding="utf-8"))["retrieved_at"]}
 
@@ -125,10 +161,10 @@ def _endpoints(config: dict[str, Any]) -> dict[str, str]: return DEFAULT_ENDPOIN
 def _collect(config: dict[str, Any], *, offline: bool, environment: dict[str, str] | None, client: FindataClient | None):
     cache, endpoints = Path(config.get("cache_dir", "data/raw/findata")), _endpoints(config)
     if not offline and client is None: client = FindataClient(config["base_url"], token_from_environment(environment))
-    tweet_params = {"start": config["window_start"], "end": config["window_end"]}
-    tweet_endpoint, search_params = endpoints["tweets"].format(handle=config["handle"]), {"query": config["search_query"]}
+    tweet_params = {"since": config["window_start"], "until": config["window_end"], "limit": HISTORICAL_LIMIT}
+    tweet_endpoint, search_params = endpoints["tweets"].format(handle=config["handle"]), {"q": config["search_query"], "venue": "polymarket", "status": "all", "limit": MARKET_SEARCH_LIMIT}
     tweet_payload, tweet_meta = _get_source(tweet_endpoint, tweet_params, cache, offline, client)
-    search_payload, search_meta = _get_source(endpoints["market_search"], search_params, cache, offline, client)
+    search_payload, search_meta = _get_source(endpoints["market_search"], search_params, cache, offline, client, paginated_market_search=True)
     manifest = [_manifest(tweet_endpoint, tweet_params, tweet_payload, tweet_meta), _manifest(endpoints["market_search"], search_params, search_payload, search_meta)]
     validation, included = [], []
     for candidate in _page_rows(search_payload)[0]:
@@ -147,7 +183,7 @@ def _collect(config: dict[str, Any], *, offline: bool, environment: dict[str, st
             validation.append({"market_id": market_id, "decision": "included", "reason": "exact configured title/window match with unambiguous YES/NO mapping"}); included.append(parsed[0])
     trades: dict[str, list[dict[str, Any]]] = {}
     for market in included:
-        endpoint = endpoints["trades"].format(condition_id=market["market_id"]); params = {"start": config["window_start"], "end": config["window_end"]}
+        endpoint = endpoints["trades"].format(condition_id=market["market_id"]); params = {"from": config["window_start"], "to": config["window_end"], "limit": HISTORICAL_LIMIT}
         payload, metadata = _get_source(endpoint, params, cache, offline, client)
         manifest.append(_manifest(endpoint, params, payload, metadata)); trades[market["market_id"]] = parse_trades(payload, market["outcome_tokens"])
     return manifest, validation, _in_window(parse_tweets(tweet_payload), config["window_start"], config["window_end"]), trades, included, cache, client
@@ -157,7 +193,7 @@ def run_pilot(config: dict[str, Any], output: Path, *, offline: bool, environmen
     manifest, validation, tweets, trades, _, _, _ = _collect(config, offline=offline, environment=environment, client=client)
     horizons = list(config["horizons_seconds"]); bundles = build_bundles(tweets, int(config["bundle_gap_seconds"]), horizons)
     observations = study_observations(bundles, trades, horizons, int(config["staleness_seconds"]), float(config["terminal_move_floor"]))
-    write_outputs(output, manifest=manifest, market_validation=validation, bundles=bundles, observations=observations, delay_profile=summarize_delays(observations, horizons), first_print=first_print_latencies(bundles, trades), timestamp_precision=timestamp_precision(tweets, trades))
+    write_outputs(output, manifest=manifest, market_validation=validation, bundles=bundles, observations=observations, delay_profile=summarize_delays(observations, horizons), first_print=first_print_latencies(bundles, trades, terminal_horizon_seconds=max(horizons)), timestamp_precision=timestamp_precision(tweets, trades))
 
 
 def audit_pilot(config: dict[str, Any], output: Path, *, offline: bool, environment: dict[str, str] | None = None, client: FindataClient | None = None) -> None:
@@ -165,7 +201,7 @@ def audit_pilot(config: dict[str, Any], output: Path, *, offline: bool, environm
     rows = []
     for market in included:
         for outcome, asset_id in sorted(market["outcome_tokens"].items()):
-            endpoint = _endpoints(config)["orderbook"].format(asset_id=asset_id); params = {"start": config["window_start"], "end": config["window_end"]}
+            endpoint = _endpoints(config)["orderbook"].format(asset_id=asset_id); params = {"from": config["window_start"], "to": config["window_end"], "limit": HISTORICAL_LIMIT}
             payload, metadata = _get_source(endpoint, params, cache, offline, client); manifest.append(_manifest(endpoint, params, payload, metadata))
             snapshots, _ = _page_rows(payload); stamps = [str(row.get("timestamp", row.get("created_at", ""))) for row in snapshots if row.get("timestamp", row.get("created_at"))]
             rows.append({"market_id": market["market_id"], "outcome": outcome, "asset_id": asset_id, "snapshot_count": len(snapshots), "first_timestamp": min(stamps) if stamps else None, "last_timestamp": max(stamps) if stamps else None, "coverage": bool(stamps), "execution_verdict": "not execution-estimable: aligned order-book coverage and fill model are not established"})

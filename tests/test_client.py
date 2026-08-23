@@ -28,21 +28,36 @@ class ClientTests(unittest.TestCase):
             token_from_environment({})
         self.assertNotIn("LUMID_PAT=", str(error.exception))
 
-    def test_paginated_search_reads_every_cursor_page(self):
-        from value_of_wait.pipeline import fetch_paginated
+    def test_market_search_reads_every_offset_page_until_total(self):
+        from value_of_wait.pipeline import fetch_market_search
 
         class Client:
             def __init__(self):
                 self.calls = []
             def get_json(self, endpoint, params):
                 self.calls.append((endpoint, params))
-                return {"data": {"items": [{"id": str(len(self.calls))}], "next_cursor": "next" if len(self.calls) == 1 else None}}
+                return {"data": {"items": [{"id": str(len(self.calls))}], "total": 2}}
 
         client = Client()
-        rows = fetch_paginated(client, "markets", {"query": "Elon Musk post"})
+        rows = fetch_market_search(client, "markets", {"q": "Elon Musk post", "venue": "polymarket", "status": "all", "limit": 1})
 
         self.assertEqual([row["id"] for row in rows], ["1", "2"])
-        self.assertEqual(client.calls[1][1]["cursor"], "next")
+        self.assertEqual(client.calls[0][1]["offset"], 0)
+        self.assertEqual(client.calls[1][1]["offset"], 1)
+
+    def test_client_error_includes_status_and_redacts_credential(self):
+        from value_of_wait.client import FindataClient
+
+        class ServiceError(OSError):
+            code = 400
+            reason = "unsupported parameter query; Authorization: Bearer service-secret; https://service.test?access_token=url-secret"
+
+        client = FindataClient("https://example.test", "secret-value", transport=lambda *_: (_ for _ in ()).throw(ServiceError()), retries=1)
+        with self.assertRaisesRegex(RuntimeError, r"HTTP 400.*unsupported parameter") as error:
+            client.get_json("markets", {"q": "Elon Musk"})
+        self.assertNotIn("secret-value", str(error.exception))
+        self.assertNotIn("service-secret", str(error.exception))
+        self.assertNotIn("url-secret", str(error.exception))
 
     def test_cache_rejects_multiple_content_versions_for_one_request(self):
         from pathlib import Path

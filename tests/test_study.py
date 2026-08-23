@@ -27,10 +27,35 @@ class StudyTests(unittest.TestCase):
     def test_first_print_is_strictly_after_decision_time(self):
         from value_of_wait.study import first_print_latencies
 
-        bundles = [{"bundle_id": "b", "decision_time": "2026-05-20T10:00:00Z"}]
+        bundles = [{"bundle_id": "b", "decision_time": "2026-05-20T10:00:00Z", "clean_1800": True}]
         trades = {"m": [{"timestamp": "2026-05-20T10:00:00Z", "yes_price": .4}, {"timestamp": "2026-05-20T10:00:07Z", "yes_price": .5}]}
 
-        self.assertEqual(first_print_latencies(bundles, trades)[0]["latency_seconds"], 7.0)
+        latency = first_print_latencies(bundles, trades, terminal_horizon_seconds=1800)[0]
+        self.assertEqual(latency["latency_seconds"], 7.0)
+        self.assertTrue(latency["within_terminal_horizon"])
+        self.assertTrue(latency["terminal_clean"])
+        late = first_print_latencies(bundles, trades, terminal_horizon_seconds=5)[0]
+        self.assertFalse(late["within_terminal_horizon"])
+
+    def test_remaining_move_requires_terminal_cleanliness_and_summary_uses_actual_sample_counts(self):
+        from value_of_wait.study import build_bundles, study_observations, summarize_delays
+
+        tweets = [{"tweet_id": "a", "timestamp": "2026-05-20T10:00:00Z"}, {"tweet_id": "later", "timestamp": "2026-05-20T10:01:00Z"}]
+        bundles = build_bundles(tweets, gap_seconds=0, horizons=[5, 1800])
+        trades = {"m": [{"timestamp": "2026-05-20T09:59:59Z", "yes_price": .4}, {"timestamp": "2026-05-20T10:00:03Z", "yes_price": .5}, {"timestamp": "2026-05-20T10:30:00Z", "yes_price": .6}]}
+
+        observations = study_observations(bundles[:1], trades, [5, 1800], staleness_seconds=900, terminal_move_floor=.005)
+        short = observations[0]
+        summary = summarize_delays(observations, [5])[0]
+
+        self.assertTrue(short["clean"])
+        self.assertTrue(short["eligible"])
+        self.assertTrue(short["updated"])
+        self.assertIsNone(short["remaining_move_proxy"])
+        self.assertEqual(summary["updated_pairs"], 1)
+        self.assertEqual(summary["repricing_n"], 1)
+        self.assertEqual(summary["remaining_n"], 0)
+        self.assertEqual(summary["terminal_clean_eligible_pairs"], 0)
 
 
 if __name__ == "__main__":

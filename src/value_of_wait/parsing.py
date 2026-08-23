@@ -27,24 +27,44 @@ def _value(row: dict[str, Any], *names: str) -> Any:
     return None
 
 
-def parse_markets(payload: Any) -> list[dict[str, Any]]:
-    parsed: list[dict[str, Any]] = []
-    for row in _rows(payload):
-        outcomes = _value(row, "outcomes", "tokens") or []
+def _outcome_tokens(row: dict[str, Any]) -> dict[str, str]:
+    outcomes = _value(row, "outcomes", "tokens") or []
+    if not isinstance(outcomes, list):
+        return {}
+    if all(isinstance(outcome, dict) for outcome in outcomes):
         mapping: dict[str, str] = {}
         for outcome in outcomes:
-            if not isinstance(outcome, dict):
-                continue
             name = str(_value(outcome, "name", "outcome", "label") or "").strip().upper()
             token = _value(outcome, "token_id", "tokenId", "id", "asset_id")
             if name in {"YES", "NO"} and token is not None:
-                if name in mapping:
-                    mapping = {}
-                    break
-                mapping[name] = str(token)
-        if set(mapping) == {"YES", "NO"} and mapping["YES"] != mapping["NO"]:
+                token_id = str(token).strip()
+                if name in mapping or not token_id:
+                    return {}
+                mapping[name] = token_id
+        return mapping if set(mapping) == {"YES", "NO"} and mapping["YES"] != mapping["NO"] else {}
+    token_ids = row.get("clob_token_ids")
+    if not isinstance(token_ids, list) or len(outcomes) != len(token_ids):
+        return {}
+    mapping = {}
+    for label, token in zip(outcomes, token_ids):
+        name, token_id = str(label).strip().upper(), str(token).strip() if token is not None else ""
+        if name not in {"YES", "NO"} or name in mapping or not token_id:
+            return {}
+        mapping[name] = token_id
+    return mapping if set(mapping) == {"YES", "NO"} and mapping["YES"] != mapping["NO"] else {}
+
+
+def parse_markets(payload: Any) -> list[dict[str, Any]]:
+    parsed: list[dict[str, Any]] = []
+    for row in _rows(payload):
+        mapping = _outcome_tokens(row)
+        if mapping:
             copy = dict(row)
-            copy["market_id"] = str(_value(row, "market_id", "id", "condition_id") or "")
+            condition_id = str(_value(row, "condition_id") or "").strip()
+            source_market_id = str(_value(row, "market_id", "id") or "").strip()
+            copy["market_id"] = condition_id or source_market_id
+            if condition_id and source_market_id:
+                copy["source_market_id"] = source_market_id
             copy["outcome_tokens"] = mapping
             parsed.append(copy)
     return parsed
@@ -68,7 +88,7 @@ def parse_trades(payload: Any, outcome_tokens: dict[str, str]) -> list[dict[str,
     for row in _rows(payload):
         token = _value(row, "token_id", "tokenId", "asset_id", "assetId")
         price = _value(row, "price", "value")
-        timestamp = _value(row, "timestamp", "created_at", "createdAt", "time")
+        timestamp = _value(row, "timestamp", "created_at", "createdAt", "time", "ts")
         if str(token) not in token_to_outcome or price is None or timestamp is None:
             continue
         try:
