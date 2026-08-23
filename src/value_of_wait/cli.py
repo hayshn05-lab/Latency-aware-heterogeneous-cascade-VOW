@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from .client import MissingTokenError
-from .pipeline import run_pilot
+from .pipeline import audit_pilot, run_pilot
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -18,7 +18,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     try:
-        run_pilot(config, Path(args.output), offline=args.offline)
+        (audit_pilot if args.command == "audit" else run_pilot)(config, Path(args.output), offline=args.offline)
     except MissingTokenError as error:
         print(str(error))
         return 2

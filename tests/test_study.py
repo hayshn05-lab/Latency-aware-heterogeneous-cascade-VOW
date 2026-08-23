@@ -21,6 +21,7 @@ class StudyTests(unittest.TestCase):
         self.assertEqual(observations[0]["updated"], True)
         self.assertEqual(observations[0]["absolute_repricing_points"], 10.0)
         self.assertEqual(summary[0]["clean_eligible_pairs"], 1)
+        self.assertIsNotNone(summary[0]["median_delayed_age_seconds"])
         self.assertIsNone(summary[1]["median_repricing_points"])
 
     def test_first_print_is_strictly_after_decision_time(self):

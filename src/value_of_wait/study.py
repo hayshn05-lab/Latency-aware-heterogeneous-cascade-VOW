@@ -85,7 +85,9 @@ def summarize_delays(observations: list[dict[str, Any]], horizons: list[int]) ->
         remaining = [float(row["remaining_move_proxy"]) for row in clean if row["remaining_move_proxy"] is not None]
         repricing_iqr = _iqr(repricing)
         remaining_iqr = _iqr(remaining)
-        rows.append({"horizon_seconds": horizon, "bundle_market_pairs": len(all_rows), "eligible_pairs": len(eligible), "clean_eligible_pairs": len(clean), "coverage": len(eligible) / len(all_rows) if all_rows else None, "clean_coverage": len(clean) / len(all_rows) if all_rows else None, "updated_fraction": sum(bool(row["updated"]) for row in clean) / len(clean) if clean else None, "median_repricing_points": median(repricing) if repricing else None, "repricing_iqr_low_points": repricing_iqr[0], "repricing_iqr_high_points": repricing_iqr[1], "median_remaining_move_proxy": median(remaining) if remaining else None, "remaining_iqr_low": remaining_iqr[0], "remaining_iqr_high": remaining_iqr[1], "missing_pairs": len(all_rows) - len(eligible)})
+        ages = [float(row["delayed_age_seconds"]) for row in clean if row["delayed_age_seconds"] is not None]
+        age_iqr = _iqr(ages)
+        rows.append({"horizon_seconds": horizon, "bundle_market_pairs": len(all_rows), "eligible_pairs": len(eligible), "clean_eligible_pairs": len(clean), "coverage": len(eligible) / len(all_rows) if all_rows else None, "clean_coverage": len(clean) / len(all_rows) if all_rows else None, "updated_fraction": sum(bool(row["updated"]) for row in clean) / len(clean) if clean else None, "median_repricing_points": median(repricing) if repricing else None, "repricing_iqr_low_points": repricing_iqr[0], "repricing_iqr_high_points": repricing_iqr[1], "median_remaining_move_proxy": median(remaining) if remaining else None, "remaining_iqr_low": remaining_iqr[0], "remaining_iqr_high": remaining_iqr[1], "median_delayed_age_seconds": median(ages) if ages else None, "delayed_age_iqr_low_seconds": age_iqr[0], "delayed_age_iqr_high_seconds": age_iqr[1], "missing_pairs": len(all_rows) - len(eligible)})
     return rows
 
 

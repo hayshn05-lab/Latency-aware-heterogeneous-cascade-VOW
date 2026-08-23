@@ -3,10 +3,19 @@
   "window_start": "2026-05-19T16:00:00Z",
   "window_end": "2026-05-26T16:00:00Z",
   "search_query": "Elon Musk post",
+  "title_prefix": "Will Elon Musk post",
+  "title_window_label": "from May 19 to May 26, 2026",
   "bundle_gap_seconds": 60,
   "horizons_seconds": [5, 10, 30, 60, 120, 300, 600, 1800],
   "staleness_seconds": 900,
   "terminal_move_floor": 0.005,
   "base_url": "https://lum.id/findata",
-  "cache_dir": "data/raw/findata"
+  "cache_dir": "data/raw/findata",
+  "endpoints": {
+    "tweets": "/kols/{handle}/tweets/history",
+    "market_search": "/prediction-markets/markets/search",
+    "market_detail": "/prediction-markets/markets/polymarket/{condition_id}",
+    "trades": "/prediction-markets/trades/polymarket/{condition_id}",
+    "orderbook": "/prediction-markets/orderbook/polymarket/{asset_id}"
+  }
 }

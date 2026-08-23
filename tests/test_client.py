@@ -44,6 +44,18 @@ class ClientTests(unittest.TestCase):
         self.assertEqual([row["id"] for row in rows], ["1", "2"])
         self.assertEqual(client.calls[1][1]["cursor"], "next")
 
+    def test_cache_rejects_multiple_content_versions_for_one_request(self):
+        from pathlib import Path
+        import tempfile
+        from value_of_wait.pipeline import load_cache_entry, save_cache_entry
+
+        with tempfile.TemporaryDirectory() as temporary:
+            cache = Path(temporary)
+            save_cache_entry(cache, "/endpoint", {"a": 1}, {"data": [1]})
+            save_cache_entry(cache, "/endpoint", {"a": 1}, {"data": [2]})
+            with self.assertRaisesRegex(RuntimeError, "multiple content versions"):
+                load_cache_entry(cache, "/endpoint", {"a": 1})
+
 
 if __name__ == "__main__":
     unittest.main()
