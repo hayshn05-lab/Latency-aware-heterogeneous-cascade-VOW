@@ -17,8 +17,12 @@ data/interim/**
 outputs/cache/**
 !outputs/cache/.gitkeep
 
-# Local orchestration records.
+# Local orchestration records and transcripts.
 .superpowers/
+session.md
+*.session.md
+*.log
+tmp/
 
 # Editor and OS noise.
 .DS_Store
