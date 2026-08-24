@@ -57,6 +57,22 @@ class StudyTests(unittest.TestCase):
         self.assertEqual(summary["remaining_n"], 0)
         self.assertEqual(summary["terminal_clean_eligible_pairs"], 0)
 
+    def test_summary_reports_bundle_level_update_rate_distribution(self):
+        from value_of_wait.study import summarize_delays
+
+        observations = [
+            {"bundle_id": "b1", "horizon_seconds": 5, "eligible": True, "clean": True, "terminal_clean": True, "updated": True, "absolute_repricing_points": 1, "remaining_move_proxy": None, "delayed_age_seconds": 1},
+            {"bundle_id": "b1", "horizon_seconds": 5, "eligible": True, "clean": True, "terminal_clean": True, "updated": False, "absolute_repricing_points": 0, "remaining_move_proxy": None, "delayed_age_seconds": 1},
+            {"bundle_id": "b2", "horizon_seconds": 5, "eligible": True, "clean": True, "terminal_clean": True, "updated": True, "absolute_repricing_points": 1, "remaining_move_proxy": None, "delayed_age_seconds": 1},
+        ]
+
+        summary = summarize_delays(observations, [5])[0]
+
+        self.assertEqual(summary["updated_fraction"], 2 / 3)
+        self.assertEqual(summary["bundle_updated_n"], 2)
+        self.assertEqual(summary["median_bundle_updated_fraction"], 0.75)
+        self.assertEqual((summary["bundle_updated_iqr_low"], summary["bundle_updated_iqr_high"]), (0.5, 0.5))
+
 
 if __name__ == "__main__":
     unittest.main()

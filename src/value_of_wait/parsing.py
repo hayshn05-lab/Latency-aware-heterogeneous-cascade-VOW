@@ -36,11 +36,12 @@ def _outcome_tokens(row: dict[str, Any]) -> dict[str, str]:
         for outcome in outcomes:
             name = str(_value(outcome, "name", "outcome", "label") or "").strip().upper()
             token = _value(outcome, "token_id", "tokenId", "id", "asset_id")
-            if name in {"YES", "NO"} and token is not None:
-                token_id = str(token).strip()
-                if name in mapping or not token_id:
-                    return {}
-                mapping[name] = token_id
+            if name not in {"YES", "NO"} or token is None:
+                return {}
+            token_id = str(token).strip()
+            if name in mapping or not token_id:
+                return {}
+            mapping[name] = token_id
         return mapping if set(mapping) == {"YES", "NO"} and mapping["YES"] != mapping["NO"] else {}
     token_ids = row.get("clob_token_ids")
     if not isinstance(token_ids, list) or len(outcomes) != len(token_ids):

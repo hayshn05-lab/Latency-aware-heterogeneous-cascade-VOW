@@ -33,23 +33,30 @@ def _svg(delay_profile: list[dict[str, Any]]) -> str:
     ordered = sorted(delay_profile, key=lambda item: int(item["horizon_seconds"]))
     max_horizon = max((int(row["horizon_seconds"]) for row in ordered), default=1)
     points = []
+    iqr_bars = []
     for row in ordered:
         value = row.get("updated_fraction")
+        x = 70 + 700 * int(row["horizon_seconds"]) / max_horizon
         if value is not None:
-            x = 70 + 700 * int(row["horizon_seconds"]) / max_horizon
             points.append(f"{x:.1f},{190 - 140 * float(value):.1f}")
+        low, high = row.get("bundle_updated_iqr_low"), row.get("bundle_updated_iqr_high")
+        if low is not None and high is not None:
+            iqr_bars.append(f'<line x1="{x:.1f}" y1="{190 - 140 * float(low):.1f}" x2="{x:.1f}" y2="{190 - 140 * float(high):.1f}" stroke="#7a3db8" stroke-width="3" stroke-dasharray="3 2"/>')
     labels = "".join(f'<text x="{70 + 700 * int(row["horizon_seconds"]) / max_horizon:.1f}" y="220" text-anchor="middle">{row["horizon_seconds"]}s</text>' for row in ordered)
     def disclosure(row: dict[str, Any]) -> str:
         fraction = row.get("updated_fraction")
         updated = f"{100 * float(fraction):.1f}%" if fraction is not None else "NA"
-        return f'{row["horizon_seconds"]}s | updated={updated} ({row.get("updated_pairs", "NA")}/{row.get("clean_eligible_pairs", 0)}) | clean eligible n={row.get("clean_eligible_pairs", 0)} | missing={row.get("missing_pairs", 0)}'
-    details = "".join(f'<text x="20" y="{255 + index * 17}" font-family="sans-serif" font-size="11">{disclosure(row)}</text>' for index, row in enumerate(ordered))
-    height = 275 + 17 * len(ordered)
+        low, high = row.get("bundle_updated_iqr_low"), row.get("bundle_updated_iqr_high")
+        iqr = f"{100 * float(low):.1f}%–{100 * float(high):.1f}%" if low is not None and high is not None else "NA"
+        return f'{row["horizon_seconds"]}s | updated={updated} ({row.get("updated_pairs", "NA")}/{row.get("clean_eligible_pairs", 0)}) | bundle n={row.get("bundle_updated_n", 0)} IQR={iqr} | missing={row.get("missing_pairs", 0)}'
+    details = "".join(f'<text x="20" y="{275 + index * 17}" font-family="sans-serif" font-size="11">{disclosure(row)}</text>' for index, row in enumerate(ordered))
+    height = 295 + 17 * len(ordered)
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="820" height="{height}" viewBox="0 0 820 {height}" role="img" aria-label="Updated fraction by numeric delay; percent; unsmoothed">
 <rect width="100%" height="100%" fill="white"/><text x="20" y="24" font-family="sans-serif" font-size="15">Updated fraction by delay (percent); unsmoothed</text>
 <line x1="55" y1="190" x2="790" y2="190" stroke="black"/><line x1="55" y1="45" x2="55" y2="190" stroke="black"/>
 <text x="48" y="194" text-anchor="end">0%</text><text x="48" y="124" text-anchor="end">50%</text><text x="48" y="54" text-anchor="end">100%</text>
-<polyline points="{' '.join(points)}" fill="none" stroke="#1769aa" stroke-width="2"/>{labels}
+<polyline points="{' '.join(points)}" fill="none" stroke="#1769aa" stroke-width="2"/>{''.join(iqr_bars)}{labels}
+<text x="20" y="245" font-family="sans-serif" font-size="11">IQR across bundle-level update rates; descriptive heterogeneity, not a confidence interval</text>
 {details}</svg>'''
 
 
@@ -69,8 +76,19 @@ def write_outputs(output: Path, *, manifest: list[dict[str, Any]], market_valida
     timestamp_label = {"seconds": "second", "milliseconds": "millisecond"}.get(str(precision["classification"]), str(precision["classification"]))
     ordered = sorted(delay_profile, key=lambda row: int(row["horizon_seconds"]))
     coverage = "; ".join(f'{row["horizon_seconds"]}s: {100 * float(row["updated_fraction"]):.1f}% ({row.get("updated_pairs", "NA")}/{row.get("clean_eligible_pairs", 0)} clean eligible)' for row in ordered if row.get("updated_fraction") is not None) or "no clean eligible pairs"
-    under_resolved = any(row.get("updated_fraction") is not None and float(row["updated_fraction"]) < 0.5 and float(row.get("median_delayed_age_seconds") or 0) >= 60 for row in ordered)
-    resolution = "Because update coverage is sparse and delayed state age is high, seconds/minutes price-opportunity decay is weakly identified/under-resolved." if under_resolved else "Timestamp format alone does not establish seconds/minutes price-opportunity decay."
+    absent_clean_support = any(int(row.get("clean_eligible_pairs") or 0) == 0 for row in ordered)
+    sparse_coverage = any(row.get("updated_fraction") is not None and float(row["updated_fraction"]) < 0.5 for row in ordered)
+    high_age = any(float(row.get("median_delayed_age_seconds") or 0) >= 60 for row in ordered)
+    if absent_clean_support:
+        resolution = "No clean eligible support exists at one or more delays, so those delays are not interpretable."
+    elif sparse_coverage and high_age:
+        resolution = "Across the delay profile, sparse update coverage and high delayed-state age make seconds/minutes price-opportunity decay weakly identified/under-resolved."
+    elif sparse_coverage:
+        resolution = "Update coverage is sparse, so timestamp format alone does not establish seconds/minutes price-opportunity decay."
+    elif high_age:
+        resolution = "Delayed state age is high, so timestamp format alone does not establish seconds/minutes price-opportunity decay."
+    else:
+        resolution = "Timestamp format alone does not establish seconds/minutes price-opportunity decay."
     (output / "generated_findings.md").write_text(f"# Pilot findings\n\nAll price results are **non-executable price-move proxy** measures, not profit, return, or realizable PnL. Remaining move is non-executable and not profit. Missing values are not treated as zero. Timestamps are {timestamp_label}-formatted; milliseconds are {milliseconds}.\n\nUpdated-trade coverage among clean eligible pairs: {coverage}. {resolution}\n", encoding="utf-8")
 
 

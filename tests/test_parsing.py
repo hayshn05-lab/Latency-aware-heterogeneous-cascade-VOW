@@ -21,6 +21,13 @@ class ParsingTests(unittest.TestCase):
 
         self.assertEqual(markets, [])
 
+    def test_market_with_unknown_outcome_object_is_rejected(self):
+        from value_of_wait.parsing import parse_markets
+
+        markets = parse_markets({"markets": [{"id": "m1", "outcomes": [{"name": "YES", "token_id": "a"}, {"name": "NO", "token_id": "b"}, {"name": "MAYBE", "token_id": "c"}]}]})
+
+        self.assertEqual(markets, [])
+
     def test_market_accepts_live_parallel_outcomes_and_uses_condition_id(self):
         from value_of_wait.parsing import parse_markets
 

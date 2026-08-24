@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 import re
 from typing import Any
-import warnings
 
 from .client import FindataClient, token_from_environment
 from .outputs import write_outputs
@@ -88,44 +87,107 @@ def _response_total(payload: Any) -> int | None:
     return None
 
 
+def _response_containers(payload: Any) -> list[dict[str, Any]]:
+    containers: list[dict[str, Any]] = []
+    if isinstance(payload, dict):
+        containers.append(payload)
+        for key in ("data", "meta", "pagination"):
+            value = payload.get(key)
+            if isinstance(value, dict):
+                containers.append(value)
+                for nested_key in ("meta", "pagination"):
+                    nested = value.get(nested_key)
+                    if isinstance(nested, dict):
+                        containers.append(nested)
+    return containers
+
+
+def _truncation_class(payload: Any, row_count: int) -> str | None:
+    total = _response_total(payload)
+    if total is not None and total > row_count:
+        return "total"
+    for container in _response_containers(payload):
+        for key in ("next_cursor", "nextCursor", "cursor"):
+            if container.get(key):
+                return key
+        for key in ("has_more", "hasMore"):
+            if container.get(key) is True:
+                return key
+        for key in ("next", "next_page", "nextPage", "next_offset", "nextOffset"):
+            if key in container and container.get(key) not in (None, "", False):
+                return key
+    return None
+
+
 def fetch_bounded(client: FindataClient, endpoint: str, params: dict[str, Any]) -> Any:
     payload = client.get_json(endpoint, params)
-    total = _response_total(payload)
     rows, _ = _page_rows(payload)
-    if total is not None and total > len(rows):
-        warnings.warn(f"Findata response for {endpoint} may be truncated: service reports {total} rows but only {len(rows)} were retrieved", RuntimeWarning, stacklevel=2)
+    truncation = _truncation_class(payload, len(rows))
+    if truncation:
+        raise RuntimeError(f"Findata fixed-window response truncated for {endpoint}: {truncation}")
     return payload
 
 
-def fetch_market_search(client: FindataClient, endpoint: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+def fetch_market_search_pages(client: FindataClient, endpoint: str, params: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     limit = int(params["limit"])
     if limit <= 0:
         raise ValueError("market-search limit must be positive")
     rows: list[dict[str, Any]] = []
+    page_requests: list[dict[str, Any]] = []
     for page_number in range(MAX_MARKET_SEARCH_PAGES):
         request = dict(params)
         request["offset"] = page_number * limit
         payload = client.get_json(endpoint, request)
+        page_requests.append({"endpoint": endpoint, "params": dict(sorted(request.items())), "response": payload})
         page, _ = _page_rows(payload)
         rows.extend(page)
         total = _response_total(payload)
         if total is not None and len(rows) >= total:
-            return rows
+            return rows, page_requests
         if len(page) < limit:
-            return rows
+            return rows, page_requests
     raise RuntimeError("Findata market-search pagination exceeded the safety page limit")
+
+
+def fetch_market_search(client: FindataClient, endpoint: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    return fetch_market_search_pages(client, endpoint, params)[0]
 
 
 def _manifest(endpoint: str, params: dict[str, Any], payload: Any, metadata: dict[str, Any]) -> dict[str, Any]:
     rows, _ = _page_rows(payload)
-    return {"endpoint": endpoint, "params": dict(sorted(params.items())), "retrieved_at": metadata.get("retrieved_at"), "row_count": len(rows), "sha256": _digest(payload)}
+    manifest = {"endpoint": endpoint, "params": dict(sorted(params.items())), "retrieved_at": metadata.get("retrieved_at"), "row_count": len(rows), "sha256": _digest(payload)}
+    if isinstance(payload, dict) and isinstance(payload.get("page_requests"), list):
+        manifest["page_count"] = len(payload["page_requests"])
+        manifest["page_requests"] = [{"endpoint": page.get("endpoint"), "params": page.get("params")} for page in payload["page_requests"] if isinstance(page, dict)]
+    return manifest
+
+
+def _validate_market_search_cache(endpoint: str, params: dict[str, Any], payload: Any) -> None:
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list) or not isinstance(payload.get("page_requests"), list):
+        raise RuntimeError(f"invalid cached paginated response for {endpoint}")
+    limit = int(params["limit"])
+    merged: list[dict[str, Any]] = []
+    for index, page in enumerate(payload["page_requests"]):
+        expected = dict(params); expected["offset"] = index * limit
+        if not isinstance(page, dict) or page.get("endpoint") != endpoint or page.get("params") != dict(sorted(expected.items())) or "response" not in page:
+            raise RuntimeError(f"invalid cached paginated response for {endpoint}")
+        merged.extend(_page_rows(page["response"])[0])
+    if merged != payload["data"]:
+        raise RuntimeError(f"invalid cached paginated response for {endpoint}")
 
 
 def _get_source(endpoint: str, params: dict[str, Any], cache: Path, offline: bool, client: FindataClient | None, *, paginated_market_search: bool = False) -> tuple[Any, dict[str, Any]]:
     if offline:
-        return load_cache_entry(cache, endpoint, params)
+        payload, metadata = load_cache_entry(cache, endpoint, params)
+        if paginated_market_search:
+            _validate_market_search_cache(endpoint, params, payload)
+        return payload, metadata
     assert client is not None
-    payload = {"data": fetch_market_search(client, endpoint, params)} if paginated_market_search else fetch_bounded(client, endpoint, params)
+    if paginated_market_search:
+        rows, page_requests = fetch_market_search_pages(client, endpoint, params)
+        payload = {"data": rows, "page_requests": page_requests}
+    else:
+        payload = fetch_bounded(client, endpoint, params)
     path = save_cache_entry(cache, endpoint, params, payload)
     return payload, {"retrieved_at": json.loads(path.read_text(encoding="utf-8"))["retrieved_at"]}
 

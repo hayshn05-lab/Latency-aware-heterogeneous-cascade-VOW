@@ -22,19 +22,57 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual([row["id"] for row in rows], ["1"])
         self.assertEqual(client.calls, [("/prediction-markets/markets/search", {"q": "Elon Musk post", "venue": "polymarket", "status": "all", "limit": 2, "offset": 0})])
 
-    def test_bounded_fetch_warns_when_service_total_exceeds_retrieved_rows(self):
+    def test_bounded_fetch_rejects_service_total_exceeding_retrieved_rows(self):
         from value_of_wait.pipeline import fetch_bounded
-        import warnings
 
         class Client:
             def get_json(self, endpoint, params):
                 return {"data": {"items": [{"id": "one"}], "total": 2}}
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            payload = fetch_bounded(Client(), "/tweets", {"since": "2026-05-19T16:00:00Z", "until": "2026-05-26T16:00:00Z", "limit": 1000})
-        self.assertEqual(payload["data"]["items"], [{"id": "one"}])
-        self.assertTrue(any("may be truncated" in str(item.message) for item in caught))
+        with self.assertRaisesRegex(RuntimeError, r"/tweets: total"):
+            fetch_bounded(Client(), "/tweets", {"since": "2026-05-19T16:00:00Z", "until": "2026-05-26T16:00:00Z", "limit": 1000})
+
+    def test_bounded_fetch_rejects_every_continuation_indicator(self):
+        from value_of_wait.pipeline import fetch_bounded
+
+        indicators = [
+            ("total", {"data": {"items": [{"id": "one"}], "total": 2}}),
+            ("next_cursor", {"data": {"items": [], "next_cursor": "next"}}),
+            ("nextCursor", {"data": {"items": [], "nextCursor": "next"}}),
+            ("cursor", {"data": {"items": [], "cursor": "next"}}),
+            ("has_more", {"data": {"items": [], "has_more": True}}),
+            ("hasMore", {"data": {"items": [], "hasMore": True}}),
+            ("next", {"data": {"items": [], "next": 1}}),
+            ("next_offset", {"data": {"items": [], "next_offset": 100}}),
+            ("nextPage", {"data": {"items": [], "nextPage": 2}}),
+        ]
+        for kind, payload in indicators:
+            with self.subTest(kind=kind):
+                client = type("Client", (), {"get_json": lambda self, endpoint, params: payload})()
+                with self.assertRaisesRegex(RuntimeError, rf"/tweets: {kind}"):
+                    fetch_bounded(client, "/tweets", {"since": "a", "until": "b", "limit": 1})
+
+    def test_market_search_cache_preserves_raw_pages_and_replays_offline(self):
+        from value_of_wait.pipeline import _get_source, _manifest
+
+        class Client:
+            def __init__(self): self.calls = []
+            def get_json(self, endpoint, params):
+                self.calls.append((endpoint, params))
+                return {"data": {"items": [{"id": str(params["offset"])}], "total": 2}}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            cache, client = Path(temporary) / "cache", Client()
+            params = {"q": "q", "venue": "polymarket", "status": "all", "limit": 1}
+            online, metadata = _get_source("/search", params, cache, False, client, paginated_market_search=True)
+            offline, replay_metadata = _get_source("/search", params, cache, True, None, paginated_market_search=True)
+            manifest = _manifest("/search", params, offline, replay_metadata)
+        self.assertEqual([row["id"] for row in online["data"]], ["0", "1"])
+        self.assertEqual(online, offline)
+        self.assertEqual([call[1]["offset"] for call in client.calls], [0, 1])
+        self.assertEqual([page["params"]["offset"] for page in online["page_requests"]], [0, 1])
+        self.assertEqual(manifest["page_count"], 2)
+        self.assertEqual([page["params"]["offset"] for page in manifest["page_requests"]], [0, 1])
 
     def test_collection_uses_live_tweet_search_and_trade_parameters(self):
         from value_of_wait.pipeline import run_pilot
@@ -97,7 +135,8 @@ class PipelineTests(unittest.TestCase):
             tweet_period = {"since": config["window_start"], "until": config["window_end"], "limit": 1000}
             market_params = {"q": "q", "venue": "polymarket", "status": "all", "limit": 1000}
             period = {"from": config["window_start"], "to": config["window_end"], "limit": 1000}
-            save_cache_entry(cache, "/t/h", tweet_period, {"data": []}); save_cache_entry(cache, "/s", market_params, {"data": [{"id": "m"}]})
+            search_page = {"data": [{"id": "m"}]}
+            save_cache_entry(cache, "/t/h", tweet_period, {"data": []}); save_cache_entry(cache, "/s", market_params, {"data": [{"id": "m"}], "page_requests": [{"endpoint": "/s", "params": market_params | {"offset": 0}, "response": search_page}]})
             market = {"id": "m", "question": "Will Elon Musk post 10 times from May 19 to May 26, 2026?", "outcomes": [{"name": "YES", "token_id": "y"}, {"name": "NO", "token_id": "n"}]}
             save_cache_entry(cache, "/d/m", {}, {"data": [market]}); save_cache_entry(cache, "/r/m", period, {"data": []})
             save_cache_entry(cache, "/o/y", period, {"data": [{"timestamp": "2026-05-20T00:00:00Z"}]}); save_cache_entry(cache, "/o/n", period, {"data": []})
@@ -139,7 +178,8 @@ class PipelineTests(unittest.TestCase):
             market_params = {"q": config["search_query"], "venue": "polymarket", "status": "all", "limit": 1000}
             trade_period = {"from": config["window_start"], "to": config["window_end"], "limit": 1000}
             save_cache_entry(cache, "/tweets/elonmusk", tweet_period, {"data": [{"id": "t", "created_at": "2026-05-20T10:00:00Z"}]})
-            save_cache_entry(cache, "/search", market_params, {"data": [{"id": "m"}]})
+            search_page = {"data": [{"id": "m"}]}
+            save_cache_entry(cache, "/search", market_params, {"data": [{"id": "m"}], "page_requests": [{"endpoint": "/search", "params": market_params | {"offset": 0}, "response": search_page}]})
             save_cache_entry(cache, "/detail/m", {}, {"data": [{"id": "m", "question": "Will Elon Musk post 100 or more times from May 19 to May 26, 2026?", "outcomes": [{"name": "YES", "token_id": "y"}, {"name": "NO", "token_id": "n"}]}]})
             save_cache_entry(cache, "/trades/m", trade_period, {"data": [{"token_id": "y", "price": .4, "timestamp": "2026-05-20T09:59:59Z"}, {"token_id": "y", "price": .5, "timestamp": "2026-05-20T10:00:05Z"}, {"token_id": "y", "price": .6, "timestamp": "2026-05-20T10:30:00Z"}]})
             output = root / "output"

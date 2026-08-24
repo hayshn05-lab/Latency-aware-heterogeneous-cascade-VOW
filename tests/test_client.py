@@ -1,4 +1,5 @@
 import tests
+import traceback
 import unittest
 
 
@@ -58,6 +59,23 @@ class ClientTests(unittest.TestCase):
         self.assertNotIn("secret-value", str(error.exception))
         self.assertNotIn("service-secret", str(error.exception))
         self.assertNotIn("url-secret", str(error.exception))
+
+    def test_client_failure_traceback_has_no_secret_bearing_cause(self):
+        from value_of_wait.client import FindataClient
+
+        class ServiceError(OSError):
+            code = 400
+            reason = "Authorization: Bearer leaked-secret"
+
+        client = FindataClient("https://example.test", "configured-secret", transport=lambda *_: (_ for _ in ()).throw(ServiceError()), retries=1)
+        with self.assertRaises(RuntimeError) as error:
+            client.get_json("markets", {"access_token": "query-secret"})
+        rendered = "".join(traceback.format_exception(error.exception))
+        self.assertIsNone(error.exception.__cause__)
+        self.assertIsNone(error.exception.__context__)
+        self.assertNotIn("leaked-secret", rendered)
+        self.assertNotIn("configured-secret", rendered)
+        self.assertNotIn("query-secret", rendered)
 
     def test_cache_rejects_multiple_content_versions_for_one_request(self):
         from pathlib import Path

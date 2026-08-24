@@ -12,12 +12,14 @@ class OutputTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             write_outputs(Path(temporary), manifest=[], market_validation=[], bundles=[], observations=[], delay_profile=[{"horizon_seconds": 5, "updated_fraction": None, "clean_eligible_pairs": 0, "missing_pairs": 1}], first_print=[])
-            self.assertIn("updated=NA", (Path(temporary) / "latency_profile.svg").read_text(encoding="utf-8"))
+            svg = (Path(temporary) / "latency_profile.svg").read_text(encoding="utf-8")
+            self.assertIn("updated=NA", svg)
+            self.assertNotIn("stroke-dasharray", svg)
 
     def test_zero_profile_and_permuted_rows_produce_stable_chart_bytes(self):
         from value_of_wait.outputs import write_outputs
 
-        profile = [{"horizon_seconds": 10, "clean_eligible_pairs": 2, "eligible_pairs": 2, "bundle_market_pairs": 2, "missing_pairs": 0, "updated_fraction": 0.0}]
+        profile = [{"horizon_seconds": 10, "clean_eligible_pairs": 2, "eligible_pairs": 2, "bundle_market_pairs": 2, "missing_pairs": 0, "updated_fraction": 0.0, "bundle_updated_n": 1, "median_bundle_updated_fraction": 0.0, "bundle_updated_iqr_low": 0.0, "bundle_updated_iqr_high": 0.0}]
         with tempfile.TemporaryDirectory() as temporary:
             left, right = Path(temporary) / "left", Path(temporary) / "right"
             kwargs = dict(manifest=[], market_validation=[], bundles=[], observations=[], delay_profile=profile, first_print=[])
@@ -28,6 +30,32 @@ class OutputTests(unittest.TestCase):
             self.assertIn(b"Updated fraction by delay", svg)
             self.assertIn(b"0%", svg)
             self.assertIn(b"updated=0.0%", svg)
+            self.assertIn(b"stroke-dasharray", svg)
+
+    def test_chart_renders_bundle_rate_iqr_as_descriptive_not_confidence_interval(self):
+        from value_of_wait.outputs import write_outputs
+
+        profile = [{"horizon_seconds": 5, "clean_eligible_pairs": 2, "updated_pairs": 1, "updated_fraction": .5, "bundle_updated_n": 2, "median_bundle_updated_fraction": .5, "bundle_updated_iqr_low": .25, "bundle_updated_iqr_high": .75, "missing_pairs": 0}]
+        with tempfile.TemporaryDirectory() as temporary:
+            write_outputs(Path(temporary), manifest=[], market_validation=[], bundles=[], observations=[], delay_profile=profile, first_print=[])
+            svg = (Path(temporary) / "latency_profile.svg").read_text(encoding="utf-8")
+        self.assertIn("IQR across bundle-level update rates; descriptive heterogeneity, not a confidence interval", svg)
+        self.assertIn("bundle n=2", svg)
+        self.assertIn("stroke-dasharray", svg)
+
+    def test_findings_call_out_absent_clean_support_and_split_sparse_high_age_evidence(self):
+        from value_of_wait.outputs import write_outputs
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            absent = [{"horizon_seconds": 5, "clean_eligible_pairs": 0, "updated_fraction": None, "missing_pairs": 1}]
+            split = [{"horizon_seconds": 5, "clean_eligible_pairs": 2, "updated_fraction": .1, "median_delayed_age_seconds": 1, "missing_pairs": 0}, {"horizon_seconds": 60, "clean_eligible_pairs": 2, "updated_fraction": 1.0, "median_delayed_age_seconds": 300, "missing_pairs": 0}]
+            write_outputs(root / "absent", manifest=[], market_validation=[], bundles=[], observations=[], delay_profile=absent, first_print=[])
+            write_outputs(root / "split", manifest=[], market_validation=[], bundles=[], observations=[], delay_profile=split, first_print=[])
+            absent_text = (root / "absent" / "generated_findings.md").read_text(encoding="utf-8")
+            split_text = (root / "split" / "generated_findings.md").read_text(encoding="utf-8")
+        self.assertIn("No clean eligible support", absent_text)
+        self.assertIn("weakly identified/under-resolved", split_text)
 
     def test_delay_csv_and_chart_follow_numeric_horizon_order(self):
         from value_of_wait.outputs import write_outputs

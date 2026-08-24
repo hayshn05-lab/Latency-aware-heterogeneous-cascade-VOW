@@ -1,0 +1,6 @@
+{
+  "execution_verdict": "not execution-estimable without aligned order-book coverage and a fill model",
+  "markets_included": 17,
+  "snapshots": 0,
+  "token_audits": 34
+}

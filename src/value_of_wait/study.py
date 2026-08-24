@@ -82,13 +82,18 @@ def summarize_delays(observations: list[dict[str, Any]], horizons: list[int]) ->
         eligible = [row for row in all_rows if row["eligible"]]
         clean = [row for row in eligible if row["clean"]]
         terminal_clean = [row for row in eligible if row.get("terminal_clean")]
+        bundle_rates: list[float] = []
+        for bundle_id in sorted({str(row["bundle_id"]) for row in clean}):
+            bundle_rows = [row for row in clean if str(row["bundle_id"]) == bundle_id]
+            bundle_rates.append(sum(bool(row["updated"]) for row in bundle_rows) / len(bundle_rows))
         repricing = [float(row["absolute_repricing_points"]) for row in clean if row["absolute_repricing_points"] is not None]
         remaining = [float(row["remaining_move_proxy"]) for row in clean if row["remaining_move_proxy"] is not None]
         repricing_iqr = _iqr(repricing)
         remaining_iqr = _iqr(remaining)
         ages = [float(row["delayed_age_seconds"]) for row in clean if row["delayed_age_seconds"] is not None]
         age_iqr = _iqr(ages)
-        rows.append({"horizon_seconds": horizon, "bundle_market_pairs": len(all_rows), "eligible_pairs": len(eligible), "clean_eligible_pairs": len(clean), "terminal_clean_eligible_pairs": len(terminal_clean), "coverage": len(eligible) / len(all_rows) if all_rows else None, "clean_coverage": len(clean) / len(all_rows) if all_rows else None, "updated_pairs": sum(bool(row["updated"]) for row in clean), "updated_fraction": sum(bool(row["updated"]) for row in clean) / len(clean) if clean else None, "repricing_n": len(repricing), "median_repricing_points": median(repricing) if repricing else None, "repricing_iqr_low_points": repricing_iqr[0], "repricing_iqr_high_points": repricing_iqr[1], "remaining_n": len(remaining), "median_remaining_move_proxy": median(remaining) if remaining else None, "remaining_iqr_low": remaining_iqr[0], "remaining_iqr_high": remaining_iqr[1], "median_delayed_age_seconds": median(ages) if ages else None, "delayed_age_iqr_low_seconds": age_iqr[0], "delayed_age_iqr_high_seconds": age_iqr[1], "missing_pairs": len(all_rows) - len(eligible)})
+        bundle_iqr = _iqr(bundle_rates)
+        rows.append({"horizon_seconds": horizon, "bundle_market_pairs": len(all_rows), "eligible_pairs": len(eligible), "clean_eligible_pairs": len(clean), "terminal_clean_eligible_pairs": len(terminal_clean), "coverage": len(eligible) / len(all_rows) if all_rows else None, "clean_coverage": len(clean) / len(all_rows) if all_rows else None, "updated_pairs": sum(bool(row["updated"]) for row in clean), "updated_fraction": sum(bool(row["updated"]) for row in clean) / len(clean) if clean else None, "bundle_updated_n": len(bundle_rates), "median_bundle_updated_fraction": median(bundle_rates) if bundle_rates else None, "bundle_updated_iqr_low": bundle_iqr[0], "bundle_updated_iqr_high": bundle_iqr[1], "repricing_n": len(repricing), "median_repricing_points": median(repricing) if repricing else None, "repricing_iqr_low_points": repricing_iqr[0], "repricing_iqr_high_points": repricing_iqr[1], "remaining_n": len(remaining), "median_remaining_move_proxy": median(remaining) if remaining else None, "remaining_iqr_low": remaining_iqr[0], "remaining_iqr_high": remaining_iqr[1], "median_delayed_age_seconds": median(ages) if ages else None, "delayed_age_iqr_low_seconds": age_iqr[0], "delayed_age_iqr_high_seconds": age_iqr[1], "missing_pairs": len(all_rows) - len(eligible)})
     return rows
 
 

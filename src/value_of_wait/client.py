@@ -50,7 +50,7 @@ class FindataClient:
                 last_error = error
                 if attempt + 1 < self._retries:
                     self._sleeper(0.25 * (2 ** attempt))
-        raise RuntimeError(self._error_summary(last_error)) from last_error
+        raise RuntimeError(self._error_summary(last_error)) from None
 
     def _error_summary(self, error: Exception | None) -> str:
         status = getattr(error, "code", None)

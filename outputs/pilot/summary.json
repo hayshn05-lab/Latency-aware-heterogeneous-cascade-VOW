@@ -1,0 +1,16 @@
+{
+  "delay_rows": 8,
+  "economic_label": "non-executable price-move proxy",
+  "headline_support": {
+    "bundles": 260,
+    "markets": 17,
+    "observations": 35360
+  },
+  "interpretation_gate": "descriptively estimable only when timestamp precision and coverage support the requested delay",
+  "observation_rows": 35360,
+  "timestamp_precision": {
+    "classification": "seconds",
+    "least_fractional_digits": 0,
+    "milliseconds_identifiable": false
+  }
+}
