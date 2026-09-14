@@ -1,3 +1,5 @@
+> Historical evidence only. Current decisions are maintained in CURRENT_STATUS.md and docs/research_plan_current.md. REST findings are sample-specific; the pilot does not establish a profitable window.
+
 # Data Feasibility Assessment
 
 **Project:** Opportunity-Aware / Latency-Aware Selective Reasoning in Event-Driven Prediction Markets  

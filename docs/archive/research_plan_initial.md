@@ -1,3 +1,5 @@
+> Historical evidence only. Current decisions are maintained in CURRENT_STATUS.md and docs/research_plan_current.md. REST findings are sample-specific; the pilot does not establish a profitable window.
+
 # Research Plan: Opportunity-Aware Selective Reasoning in Prediction Markets
 
 **Research Question:** *When is deeper semantic reasoning worth waiting for in an event-driven prediction market?*  

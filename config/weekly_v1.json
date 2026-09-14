@@ -1,0 +1,62 @@
+{
+  "audit": {
+    "max_age_seconds": 5,
+    "offsets_seconds": [
+      0,
+      5,
+      10,
+      30,
+      60,
+      120,
+      300,
+      600,
+      1800
+    ],
+    "sample_events": 500
+  },
+  "cache": "data/raw/findata/weekly_v1",
+  "database": "data/interim/weekly_v1/research.sqlite",
+  "dataset_version": "weekly_v1",
+  "datasets": [
+    {
+      "kind": "tweets",
+      "order_by": "created_at,tweet_id,ingest_ts",
+      "select_sql": "SELECT tweet_id,created_at,kol_username,author_username,tweet_type,lang,text,url,is_reply,in_reply_to_id,quoted_tweet_id,retweeted_tweet_id,fetched_at,source,source_endpoint,source_run_id,ingest_ts FROM news.kol_tweets WHERE created_at >= '2026-09-06T00:00:00Z' AND created_at < '2026-09-13T00:00:00Z'"
+    },
+    {
+      "kind": "markets",
+      "order_by": "id,condition_id,ingest_ts",
+      "select_sql": "SELECT id,condition_id,question,slug,outcomes,clob_token_ids,start_date,end_date,closed_time,active,closed,archived,enable_order_book,source,source_endpoint,source_run_id,ingest_ts,raw->>'createdAt' AS market_created_at,raw->>'updatedAt' AS market_updated_at,raw->>'description' AS description,raw->'events' AS events,raw->>'acceptingOrders' AS accepting_orders,raw->>'acceptingOrdersTimestamp' AS accepting_orders_timestamp,raw->'feeSchedule' AS fee_schedule FROM prediction_markets.polymarket_markets WHERE end_date >= '2026-09-06T00:00:00Z' AND (start_date < '2026-09-13T00:00:00Z' OR start_date IS NULL)"
+    },
+    {
+      "kind": "trades",
+      "order_by": "ts,asset_id,trade_id,source,ingest_ts",
+      "select_sql": "SELECT trade_id,condition_id,asset_id,side,price,size,ts,source,source_endpoint,source_run_id,ingest_ts FROM prediction_markets.polymarket_trades WHERE ts >= '2026-09-06T00:00:00Z' AND ts < '2026-09-13T00:00:00Z'"
+    },
+    {
+      "kind": "books",
+      "order_by": "snapshot_ts,asset_id,source,ingest_ts,hash",
+      "select_sql": "SELECT asset_id,condition_id,market,snapshot_ts,bids,asks,tick_size,min_order_size,neg_risk,hash,source,source_endpoint,source_run_id,ingest_ts FROM prediction_markets.polymarket_orderbook_snapshots WHERE snapshot_ts >= '2026-09-06T00:00:00Z' AND snapshot_ts < '2026-09-13T00:00:00Z'"
+    }
+  ],
+  "page_size": 5000,
+  "release": "data/releases/weekly_v1",
+  "supplementary_queries": [
+    {
+      "name": "book_source_contract_first_hour_sample",
+      "sql": "SELECT source,source_endpoint,raw->>'event_type' AS event_type,count(*) AS rows FROM (SELECT source,source_endpoint,raw FROM prediction_markets.polymarket_orderbook_snapshots WHERE snapshot_ts >= '2026-09-06' AND snapshot_ts < '2026-09-06T01:00:00Z' LIMIT 1000) AS sampled GROUP BY 1,2,3 ORDER BY 1,2,3"
+    },
+    {
+      "name": "source_unique_indexes",
+      "sql": "SELECT schemaname,tablename,indexname,indexdef FROM pg_indexes WHERE (schemaname='prediction_markets' AND tablename IN ('polymarket_markets','polymarket_trades','polymarket_orderbook_snapshots')) OR (schemaname='news' AND tablename='kol_tweets') ORDER BY schemaname,tablename,indexname"
+    },
+    {
+      "name": "market_pagination_order_ties",
+      "sql": "SELECT count(*) AS duplicate_order_groups FROM (SELECT id,condition_id,ingest_ts FROM prediction_markets.polymarket_markets WHERE end_date >= '2026-09-06T00:00:00Z' AND (start_date < '2026-09-13T00:00:00Z' OR start_date IS NULL) GROUP BY id,condition_id,ingest_ts HAVING count(*) > 1) AS ties"
+    }
+  ],
+  "window": {
+    "end_exclusive": "2026-09-13T00:00:00Z",
+    "start": "2026-09-06T00:00:00Z"
+  }
+}

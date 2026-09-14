@@ -1,0 +1,52 @@
+{
+  "dataset_version": "source_reconciliation_v1",
+  "targets": [
+    {"auth": "none", "group": "docs", "name": "findata-landing", "url": "https://lum.id/findata/"},
+    {"auth": "none", "group": "docs", "name": "findata-usage", "url": "https://lum.id/findata/usage.md"},
+    {"auth": "none", "group": "docs", "name": "findata-reference", "url": "https://lum.id/findata/reference"},
+    {"auth": "none", "group": "docs", "name": "findata-llm", "url": "https://lum.id/findata/llm"},
+    {"auth": "none", "group": "docs", "name": "findata-openapi", "url": "https://lum.id/findata/openapi.json"},
+    {"accept": "application/x-x509-ca-cert", "auth": "none", "group": "docs", "name": "findata-sql-ca", "url": "https://lum.id/findata/sql-ca.pem"},
+
+    {"auth": "lumid", "group": "findata/catalog", "name": "catalog-polymarket-trades", "url": "https://lum.id/findata/catalog/tables/prediction_markets/polymarket_trades"},
+    {"auth": "lumid", "group": "findata/catalog", "name": "schema-polymarket-trades", "url": "https://lum.id/findata/catalog/tables/prediction_markets/polymarket_trades/schema.json"},
+    {"auth": "lumid", "group": "findata/catalog", "name": "catalog-polymarket-orderbook", "url": "https://lum.id/findata/catalog/tables/prediction_markets/polymarket_orderbook_snapshots"},
+    {"auth": "lumid", "group": "findata/catalog", "name": "schema-polymarket-orderbook", "url": "https://lum.id/findata/catalog/tables/prediction_markets/polymarket_orderbook_snapshots/schema.json"},
+    {"auth": "lumid", "group": "findata/catalog", "name": "catalog-kalshi-trades", "url": "https://lum.id/findata/catalog/tables/prediction_markets/kalshi_trades"},
+    {"auth": "lumid", "group": "findata/catalog", "name": "schema-kalshi-trades", "url": "https://lum.id/findata/catalog/tables/prediction_markets/kalshi_trades/schema.json"},
+    {"auth": "lumid", "group": "findata/catalog", "name": "catalog-kalshi-orderbook", "url": "https://lum.id/findata/catalog/tables/prediction_markets/kalshi_orderbook_snapshots"},
+    {"auth": "lumid", "group": "findata/catalog", "name": "schema-kalshi-orderbook", "url": "https://lum.id/findata/catalog/tables/prediction_markets/kalshi_orderbook_snapshots/schema.json"},
+
+    {"auth": "hf", "group": "eventxbench", "name": "hf-api-metadata", "url": "https://huggingface.co/api/datasets/mlsys-io/EventXBench"},
+    {"auth": "hf", "group": "eventxbench", "name": "hf-api-tree", "url": "https://huggingface.co/api/datasets/mlsys-io/EventXBench/tree/main?recursive=true&expand=false&limit=1000"},
+    {"auth": "hf", "group": "eventxbench", "name": "hf-dataset-info", "url": "https://datasets-server.huggingface.co/info?dataset=mlsys-io%2FEventXBench"},
+    {"auth": "hf", "group": "eventxbench", "name": "hf-splits", "url": "https://datasets-server.huggingface.co/splits?dataset=mlsys-io%2FEventXBench"},
+    {"accept": "application/octet-stream", "auth": "hf", "group": "eventxbench", "name": "hf-t7-test-file", "url": "https://huggingface.co/datasets/mlsys-io/EventXBench/resolve/0910574b61fba91139086a8b3a714564a652ea79/data/t7/test.jsonl"},
+    {"auth": "none", "group": "eventxbench", "name": "github-repo", "url": "https://api.github.com/repos/mlsys-io/EventXBench"},
+    {"auth": "none", "group": "eventxbench", "name": "github-main-commit", "url": "https://api.github.com/repos/mlsys-io/EventXBench/commits/main"},
+    {"auth": "none", "group": "eventxbench", "name": "github-tree", "url": "https://api.github.com/repos/mlsys-io/EventXBench/git/trees/aba1561d1748b8bc59d01b5a440bdb78febf7243?recursive=1"},
+    {"auth": "none", "group": "eventxbench", "name": "github-readme", "url": "https://raw.githubusercontent.com/mlsys-io/EventXBench/aba1561d1748b8bc59d01b5a440bdb78febf7243/README.md"},
+
+    {"auth": "lumid", "group": "findata/known", "name": "mstr-detail", "url": "https://lum.id/findata/prediction-markets/markets/polymarket/0x3733a1b647e7364095736ab0966465d896a84cf3b6bc1695ca1f26c3239b3868"},
+    {"auth": "lumid", "group": "findata/known", "name": "mstr-trades", "url": "https://lum.id/findata/prediction-markets/trades/polymarket/0x3733a1b647e7364095736ab0966465d896a84cf3b6bc1695ca1f26c3239b3868?limit=1000"},
+    {"auth": "lumid", "group": "findata/known", "name": "mstr-yes-book", "url": "https://lum.id/findata/prediction-markets/orderbook/polymarket/25714007960293389110960044475283546872601238755063051359394740854408462452120?limit=1000"},
+    {"auth": "lumid", "group": "findata/known", "name": "mstr-no-book", "url": "https://lum.id/findata/prediction-markets/orderbook/polymarket/3192689304828767159232889612891719105504357313659012189260030438494464480574?limit=1000"},
+
+    {"auth": "lumid", "group": "findata/known", "name": "elon-detail", "url": "https://lum.id/findata/prediction-markets/markets/polymarket/0x08fe7d572b28d5469ab65059e2ca4cc46e09d376f0dca4b5d3f32e0920e836cd"},
+    {"auth": "lumid", "group": "findata/known", "name": "elon-trades", "url": "https://lum.id/findata/prediction-markets/trades/polymarket/0x08fe7d572b28d5469ab65059e2ca4cc46e09d376f0dca4b5d3f32e0920e836cd?limit=1000"},
+    {"auth": "lumid", "group": "findata/known", "name": "elon-yes-book", "url": "https://lum.id/findata/prediction-markets/orderbook/polymarket/15302944848243234941547875111698860518531388909589247328209668919555903920576?limit=1000"},
+    {"auth": "lumid", "group": "findata/known", "name": "elon-no-book", "url": "https://lum.id/findata/prediction-markets/orderbook/polymarket/55295774186617654718138108549818113529692497923581788738603780408191928225988?limit=1000"},
+
+    {"auth": "lumid", "group": "findata/known", "name": "btc150-detail", "url": "https://lum.id/findata/prediction-markets/markets/polymarket/0xa0f4c4924ea1a8b410b4ce821c2a9955fad21a1b19bdcfde90816732278b3dd5"},
+    {"auth": "lumid", "group": "findata/known", "name": "btc150-trades", "url": "https://lum.id/findata/prediction-markets/trades/polymarket/0xa0f4c4924ea1a8b410b4ce821c2a9955fad21a1b19bdcfde90816732278b3dd5?limit=1000"},
+    {"auth": "lumid", "group": "findata/known", "name": "btc150-yes-book", "url": "https://lum.id/findata/prediction-markets/orderbook/polymarket/13915689317269078219168496739008737517740566192006337297676041270492637394586?limit=1000"},
+    {"auth": "lumid", "group": "findata/known", "name": "btc150-no-book", "url": "https://lum.id/findata/prediction-markets/orderbook/polymarket/13290642914521189871602119663452054126359842904805799115978921503195267156991?limit=1000"},
+
+    {"auth": "lumid", "group": "findata/kalshi", "name": "kalshi-active-detail", "url": "https://lum.id/findata/prediction-markets/markets/kalshi/KXBTC2026200-27JAN01-200000"},
+    {"auth": "lumid", "group": "findata/kalshi", "name": "kalshi-active-trades", "url": "https://lum.id/findata/prediction-markets/trades/kalshi/KXBTC2026200-27JAN01-200000?limit=1000"},
+    {"auth": "lumid", "group": "findata/kalshi", "name": "kalshi-active-book", "url": "https://lum.id/findata/prediction-markets/orderbook/kalshi/KXBTC2026200-27JAN01-200000?limit=1000"},
+    {"auth": "lumid", "group": "findata/kalshi", "name": "kalshi-closed-detail", "url": "https://lum.id/findata/prediction-markets/markets/kalshi/KXBTCD-26AUG2817-T69499.99"},
+    {"auth": "lumid", "group": "findata/kalshi", "name": "kalshi-closed-trades", "url": "https://lum.id/findata/prediction-markets/trades/kalshi/KXBTCD-26AUG2817-T69499.99?limit=1000"},
+    {"auth": "lumid", "group": "findata/kalshi", "name": "kalshi-closed-book", "url": "https://lum.id/findata/prediction-markets/orderbook/kalshi/KXBTCD-26AUG2817-T69499.99?limit=1000"}
+  ]
+}

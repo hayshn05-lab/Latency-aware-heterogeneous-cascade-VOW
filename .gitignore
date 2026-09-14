@@ -29,3 +29,16 @@ tmp/
 Thumbs.db
 .idea/
 .vscode/
+
+# EventXBench source inputs now live under the ignored data/raw/ hierarchy.
+
+# Research data and generated outputs remain local (including existing tracked artifacts).
+/data/
+/outputs/
+/reports/
+/scripts/legacy/
+# Local copies of platform documents and transcripts are not maintained source.
+/docs/reference/
+
+/docs/archive/*_original.txt
+/docs/archive/organization_*.json
