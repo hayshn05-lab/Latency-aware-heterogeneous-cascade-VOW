@@ -1,0 +1,21 @@
+{
+  "database": "data/interim/weekly_v1/research.sqlite",
+  "exit_horizons_seconds": [
+    1800,
+    3600
+  ],
+  "feed_delay_seconds": 5,
+  "max_wait_seconds": 900,
+  "quantity": 10,
+  "release": "data/releases/phase1_v1",
+  "source_manifest": "data/releases/weekly_v1/data_manifest.json",
+  "sources": [
+    "polymarket",
+    "polymarket_ws"
+  ],
+  "version": "phase1.v1",
+  "window": {
+    "end_exclusive": "2026-09-13T00:00:00Z",
+    "start": "2026-09-06T00:00:00Z"
+  }
+}

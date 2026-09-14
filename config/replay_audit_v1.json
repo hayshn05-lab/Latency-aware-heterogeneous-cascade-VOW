@@ -1,0 +1,33 @@
+{
+  "dataset_version": "replay_audit_v1",
+  "base_url": "https://lum.id/findata",
+  "raw_dir": "data/raw/findata/replay_audit_v1",
+  "universe_raw_dir": "data/raw/findata/replay_audit_v1_universe",
+  "interim_dir": "data/interim/replay_audit_v1",
+  "sample_start": "2025-10-14T00:00:00Z",
+  "sample_end": "2026-08-30T23:59:59Z",
+  "market_search_limit": 10,
+  "markets_per_stratum": 2,
+  "tweet_search_limit": 10,
+  "events_per_market": 2,
+  "rest_limit": 1000,
+  "window_before_seconds": 300,
+  "window_after_seconds": 1800,
+  "required_book_offsets_seconds": [5, 10, 30, 60, 120, 300, 600, 1800],
+  "max_book_age_seconds": 5,
+  "excluded_event_authors": ["Polymarket", "Kalshi", "PredictIt"],
+  "strata": [
+    {"name": "crypto", "query": "bitcoin", "status": "closed"},
+    {"name": "geopolitics", "query": "Ukraine", "status": "closed"},
+    {"name": "macro", "query": "Fed", "status": "closed"},
+    {"name": "politics", "query": "Trump", "status": "closed"},
+    {"name": "technology", "query": "OpenAI", "status": "closed"}
+  ],
+  "eventxbench": {
+    "github_commit": "aba1561d1748b8bc59d01b5a440bdb78febf7243",
+    "huggingface_revision": "0910574b61fba91139086a8b3a714564a652ea79",
+    "canonical_bundle": "*_latest_complete_bundle_20260726",
+    "data_access": "not_obtained: authenticated file requests returned HTTP 401",
+    "use": "public schema and benchmark-method reference only; no EventXBench rows in this release"
+  }
+}

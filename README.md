@@ -1,102 +1,58 @@
-# Value of Waiting: Opportunity-Aware Selective Reasoning in Prediction Markets
+# Value of Waiting in Prediction Markets
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen.svg)](tests/)
-[![Standard Library](https://img.shields.io/badge/dependencies-standard--library%20only-success.svg)](src/)
+Research infrastructure for the question: **when is deeper semantic reasoning worth its latency?**
 
-Empirical research scaffold and pilot experiment investigating the fundamental question:  
-> **When is deeper semantic reasoning worth waiting for in an event-driven prediction market?**
+Start with [current status](CURRENT_STATUS.md), the [research plan](docs/research_plan_current.md), and [workspace map](docs/workspace_map.md). The weekly warehouse dataset is acquired. The [phase-one snapshot experiment design](docs/specs/phase1_experiment.md) is ready; execution is deferred by the user and the interface implementation remains a draft. The [September 13 readiness report](reports/weekly_replay_readiness.md) is preserved historical evidence. No strategy profitability is claimed.
 
----
+## Completed phase-one cleaning (reproduction only)
 
-## 1. Quickstart & Verified Commands
+```powershell
+python scripts/build_phase1.py --config config/phase1_v1.json --offline
+```
 
-The core pipeline is self-contained and runs using only the **Python 3.11+ standard library** (no third-party runtime package dependencies required).
+Versioned p1 tables preserve raw records and separate conditional snapshot simulation from strict historical eligibility. See [pipeline contract](docs/specs/phase1_pipeline.md).
 
-### 1.1 Run Test Suite
-Run the 37 unit tests covering client security, response parsing, bundle construction, metrics, and deterministic outputs:
-```bash
+## Weekly dataset
+
+The configured initial window is **2026-09-06 through 2026-09-12 UTC**, with end-exclusive 2026-09-13. Tweets, Polymarket trades and L2 rows use that event-time window. Market metadata uses scheduled overlap and is explicitly retrospective, not a proven historical candidate universe.
+
+```powershell
+# Online: reads LUMID_PAT from environment or the ignored local .env.
+python scripts/run_weekly.py --config config/weekly_v1.json
+
+# Offline: no credential or network required; rebuilds from query materializations.
+python scripts/run_weekly.py --config config/weekly_v1.json --offline
+
+# Structural replay-readiness audit, with no models or trading.
+python scripts/audit_weekly.py --config config/weekly_v1.json
+```
+
+Raw SQL responses: `data/raw/findata/weekly_v1/`. SQLite database: `data/interim/weekly_v1/research.sqlite`. Query/completeness manifest and audit aggregates: `data/releases/weekly_v1/`. A fresh clone requires the ignored raw cache to reproduce source-derived results.
+
+SQLite preserves row versions and source provenance and supports incremental imports. See [database contract](docs/specs/research_database.md). Core code uses Python 3.11+ standard library only.
+
+## Verification
+
+```powershell
+python -m compileall -q src scripts tests
 python -m unittest discover -s tests -v
 ```
 
-### 1.2 Replay Pilot Experiment (Offline Mode)
-Replay the full pilot analysis using the local content-addressed raw cache (does not require internet access or API credentials):
-```bash
-python scripts/run_pilot.py run --config config/pilot.json --output outputs/pilot --offline
-```
+## Preserved pilot and earlier audits
 
-### 1.3 Replay Order Book Audit (Offline Mode)
-Replay the order book snapshot coverage audit:
-```bash
+The small tweet-count insight experiment remains in `outputs/pilot/`, with `config/pilot.json`, the original ignored raw cache, and [pilot report](reports/pilot_summary.md). It measures non-executable price-state proxies, not a proven profit window.
+
+```powershell
+python scripts/run_pilot.py run --config config/pilot.json --output outputs/pilot --offline
 python scripts/run_pilot.py audit --config config/pilot.json --output outputs/pilot --offline
 ```
 
-### 1.4 Live Execution (Online Mode)
-To fetch fresh data or re-audit live endpoints, supply the Findata token transiently via environment variable:
-```powershell
-$env:LUMID_PAT = "your_token_here"
-python scripts/run_pilot.py run --config config/pilot.json --output outputs/pilot
-Remove-Item Env:LUMID_PAT
-```
+Earlier REST entrypoints are under `scripts/legacy/`; their config/raw paths remain unchanged. [Legacy reproduction](docs/archive/replay_audit_reproduction.md) describes the retained replay audit. Superseded plans are in `docs/archive/`. Platform references are in `docs/reference/lumid/`; original T2 files are under ignored `data/raw/eventxbench/local_t2/`.
 
----
+## Week 6 platform reproductions
 
-## 2. Key Pilot Findings
+See [run instructions](<week6 report/README.md>) for two small, live model API demonstrations. These do not launch the deferred full phase-one study.
 
-An empirical pilot was conducted across **17 Polymarket contracts** (*"Will Elon Musk post [X] tweets from May 19 to May 26, 2026?"*) matched with **309 tweets** (260 bundles) by `@elonmusk`:
+Data, generated outputs/reports, local platform reference copies and legacy entrypoints remain local and are excluded from Git. Links into those directories describe local artifacts and will not resolve in a fresh clone until the corresponding artifacts are supplied or regenerated. Maintained presentation reports are under `week6 report/`.
 
-| Latency Horizon ($\Delta t$) | Clean Eligible Pairs | Updated Pairs | Updated Fraction | Median Bundle Update Rate (IQR) | Repricing ($\Delta \pi$) | Delayed State Age |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **5 seconds** | 789 | 26 | **3.3%** | 0.0% (0.0% – 0.0%) | 0.000 pts | 292.0s |
-| **10 seconds** | 787 | 36 | **4.6%** | 0.0% (0.0% – 0.0%) | 0.000 pts | 295.0s |
-| **30 seconds** | 769 | 86 | **11.2%** | 0.0% (0.0% – 0.0%) | 0.000 pts | 291.0s |
-| **60 seconds (1m)** | 760 | 111 | **14.6%** | 0.0% (0.0% – 0.0%) | 0.000 pts | 318.5s |
-| **120 seconds (2m)** | 597 | 119 | **19.9%** | 0.0% (0.0% – 0.0%) | 0.000 pts | 360.0s |
-| **300 seconds (5m)** | 297 | 67 | **22.6%** | 0.0% (0.0% – 25.0%) | 0.000 pts | 491.0s |
-| **600 seconds (10m)**| 180 | 68 | **37.8%** | 0.0% (0.0% – 58.8%) | 0.000 pts | 656.0s |
-| **1800 seconds (30m)**| 105 | 105 | **100.0%** | 100.0% (100.0% – 100.0%) | 0.300 pts | 284.0s |
-
-### Core Architectural Conclusions
-- **Viable Reasoning Window:** The actionable latency scale is **5 to 120 seconds**. Slower models ($>10\text{ minutes}$) face severe opportunity decay, while sub-second ($<1\text{s}$) models cannot be evaluated on integer-second historical data.
-- **Trade Sparsity vs. Reaction:** Lack of new trade prints at short latencies ($5\text{s}$) primarily reflects **trade sparsity and under-resolution**, not 100% preserved executable opportunity.
-- **Historical Execution Limitation:** Historical L2 order-book snapshots are sparse (0 snapshots found for 34 target outcome tokens). Historical metrics must be labelled as **non-executable price-state proxies**.
-
----
-
-## 3. Repository Structure
-
-```text
-d:/urops/V1/
-├── config/                  # Configuration files
-│   └── pilot.json           # Validated pilot configuration
-├── data/                    # Data directory (raw cache is gitignored)
-├── docs/                    # Architectural and methodology documentation
-│   ├── data_audit.md        # Comprehensive data feasibility audit
-│   ├── research_plan.md     # Mathematical formulation and full research plan
-│   ├── specs/               # Implementation specifications
-│   └── plans/               # Development execution plans
-├── outputs/pilot/           # Committed aggregate artifacts (CSV, JSON, SVG)
-├── reports/                 # Markdown research reports
-│   └── pilot_summary.md     # Detailed empirical pilot report
-├── scripts/                 # CLI entry points
-│   └── run_pilot.py         # Pilot CLI
-├── src/value_of_wait/       # Core Python package (standard library only)
-│   ├── cli.py               # Argument parsing
-│   ├── client.py            # Secret-safe REST client
-│   ├── outputs.py           # Output writers
-│   ├── parsing.py           # Response parsers & canonicalization
-│   ├── pipeline.py          # Acquisition and cache replay
-│   └── study.py             # Event construction and metrics
-├── tests/                   # 37 unit tests
-├── AGENTS.md                # Invariants and developer guidelines
-└── README.md                # This file
-```
-
----
-
-## 4. Documentation Links
-
-- [AGENTS.md](file:///d:/urops/V1/AGENTS.md): Developer invariants, security rules, and leakage constraints.
-- [Data Feasibility Audit](file:///d:/urops/V1/docs/data_audit.md): Systematic capability and limitation assessment of Findata, EventXBench, and Polymarket/Kalshi mechanics.
-- [Research Plan](file:///d:/urops/V1/docs/research_plan.md): Formal research questions, hypotheses (H1–H7), mathematical decomposition, model latency accounting, cascade variants (V0–V6), and stage gates.
-- [Pilot Summary Report](file:///d:/urops/V1/reports/pilot_summary.md): Comprehensive empirical findings, latency profile table, and next research steps.
+Previously published artifacts remain in Git history and the remote tree; this update leaves their tracked contents unchanged. Ignore rules prevent new untracked artifacts from being added.
